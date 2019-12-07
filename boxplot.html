@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title> Boxplots</title>
+	<script src="https://d3js.org/d3.v5.min.js"></script>
+</head>
+	<body>
+		<div style="padding: 50px; float:left"></div>
+		<div id="chart" style="width: 400px; float:left">
+
+			<h3>Create a Boxplot</h3>
+			<p> Click in the center of the blue strip to add points.</p>
+
+			<div class="button">
+				<input id="add" type="radio" name="gender" value="add"> Add points
+				<input id="remove" style="margin-left: 10px" type="radio" name="gender" value="remove"> Remove points
+			</div>
+
+			<svg width="250" height="350">
+				<rect id="bar" x="100" y="15" width="100" height="300" fill="lightblue"></rect>
+
+				<rect id="box" fill="aquamarine"></rect>
+
+			</svg>
+		</div>
+
+		<div style="width: 400px; float:left;">
+			<h3> How to Read a Boxplot </h3>
+			<p id="data_value">Data Values:</p>
+			<p id="outlier">Outliers:</p>
+			<p id="upper">Upper whisker:</p>
+			<p id="q3">Q3:</p>
+			<p id="median">Median:</p>
+			<p id="q1">Q1:</p>
+			<p id="lower">Lower whisker:</p>
+		</div>
+
+		<script>
+			var svg = d3.select("svg");
+			data_value = []
+			var w = svg.attr("width");
+			var h = svg.attr("height");
+			var margin = {top: 15, right: 50, bottom: 35, left: 50};
+			var innerWidth = w - margin.left - margin.right;
+			var innerHeight = h - margin.top - margin.bottom;
+			var append = true;
+
+			var yScale = d3.scaleLinear().domain([-100,100])
+			.range([innerHeight, 0]);
+			var yAxis = d3.axisLeft().scale(yScale);
+			svg.append("g").attr("class", "yAxis").attr("transform", `translate (${margin.left},${margin.top})`).call(yAxis);
+
+			function add() {
+				function drawCircle(x, y, size) {
+					svg.append("circle")
+					.attr("cx", x)
+					.attr("cy", y)
+					.attr("r", size)
+					.style("fill", "black");
+					var new_value =  Math.round((h-y-margin.bottom)/innerHeight*200-100);
+					data_value.push(new_value)
+					append = true;
+					update(data_value, x, y, append)
+					
+				}
+
+				d3.select("rect#bar").on("click", function() {
+					var coords = d3.mouse(this);
+					console.log(coords)
+					if (buttonID == "add") {
+						drawCircle(coords[0], coords[1], 3);
+					};
+				});
+			};
+
+			function update(data_value, x, y, append) {
+
+				data_value.sort(function(a, b) {return a-b});
+
+				var q1 = d3.quantile(data_value,0.25); 
+				var q3 = d3.quantile(data_value,0.75); 
+
+				var fence = 1.5*(q3 - q1)
+
+				var median = d3.median(data_value); 
+				var convert_q1 = Math.round((h-margin.bottom)-((q1+100)/200)*innerHeight);
+				var convert_q3 = Math.round((h-margin.bottom)-((q3+100)/200)*innerHeight);
+				var convert_med = Math.round((h-margin.bottom)-((median+100)/200)*innerHeight);
+				d3.select("p#data_value").text("Data Values: "+data_value);
+				d3.select("p#q1").text("Q1: "+Math.round(q1)); 
+				d3.select("p#q3").text("Q3: "+Math.round(q3));
+				d3.select("p#median").text("Median: "+Math.round(median));
+
+				goal=q3+fence; // taken from stackoverflow
+				var upper_whisk = data_value.reduce(function(prev, curr) {
+					return (Math.abs(curr - goal) < Math.abs(prev - goal) ? curr : prev);});
+				d3.select("p#upper").text("Upper whisker: "+
+					upper_whisk);
+				goal=q1-fence; //taken from stackoverflow
+				var lower_whisk = data_value.reduce(function(prev, curr) {
+					return (Math.abs(curr - goal) < Math.abs(prev - goal) ? curr : prev);});
+				d3.select("p#lower").text("Lower whisker: "+
+					lower_whisk);
+
+				// convert this with respect to my bar
+				var convert_upper = Math.round((h-margin.bottom)-((upper_whisk+100)/200)*innerHeight);
+				var convert_lower = Math.round((h-margin.bottom)-((lower_whisk+100)/200)*innerHeight);
+
+				outliers = []
+				for (i of data_value) {
+					if (i > q3+fence || i < q1-fence) {
+						if (i != upper_whisk && i != lower_whisk) {
+							outliers.push(i);
+						}
+						
+					}
+				}
+
+				for (j of outliers) {
+					original = Math.round(h-margin.bottom-(((j+100)/200)*innerHeight))
+					console.log(original);
+					var menu = document.getElementsByTagName('circle');
+					for (var i = 0; menu[i]; i++) {
+						if (Math.round(menu[i].getAttribute("cy")) == original) {
+							console.log(original)
+							menu[i].setAttribute("style", "fill:red;");
+						} 
+						
+					}
+				};
+				
+				var menu = document.getElementsByTagName('circle');
+				for (var k = 0; menu[k]; k++) {
+
+						var remove_circ =  Math.round((h-menu[k].getAttribute("cy")-margin.bottom)/innerHeight*200-100);
+
+						console.log(remove_circ)
+
+						if (outliers.includes(remove_circ)) {
+							
+							console.log(remove_circ)
+
+							menu[k].setAttribute("style", "fill:red;");
+						} else {
+							menu[k].setAttribute("style", "fill:black;");
+
+						}
+						
+					}
+					
+
+				d3.select("p#outlier").text("Outliers: "+outliers);
+				console.log(append);
+				if (data_value.length == 1 && append == true) {
+						svg.append("line")
+						.attr("x1", 100).attr("y1", y)
+						.attr("x2", 200).attr("y2", y)
+						.attr("stroke-width", "1")
+						.attr("stroke", "black")
+						.attr("id", "top");
+
+						svg.select("rect#box").attr("x",100)
+						.attr("y",convert_q3).attr("width",100)
+						.attr("fill", "aquamarine")
+						.attr("height", (0))
+						.style("pointer-events", "none")
+
+					}
+
+				if (data_value.length == 2 && append == true) { //draw preliminary box
+					svg.append("line")
+					.attr("x1", 100).attr("y1", y)
+					.attr("x2", 200).attr("y2", y)
+					.attr("stroke-width", "1")
+					.attr("stroke", "black")
+					.attr("id", "bottom")
+					
+					svg.select("rect#box").attr("y",convert_q3)
+					.attr("fill", "aquamarine")
+					.attr("height", (convert_q1-convert_q3))
+					.style("pointer-events", "none")
+
+					svg.append("line").attr("x1", 100)
+					.attr("y1", convert_q1).attr("x2", 200)
+					.attr("y2", convert_q1)
+					.attr("stroke-width", "1").attr("stroke", "black")
+					.attr("id", "q1");
+
+					svg.append("line").attr("x1", 100)
+					.attr("y1", convert_q3).attr("x2", 200)
+					.attr("y2", convert_q3)
+					.attr("stroke-width", "1").attr("stroke", "black")
+					.attr("id", "q3");
+
+					svg.append("line").attr("x1", 100)
+					.attr("y1", convert_med)
+					.attr("x2", 200)
+					.attr("y2", convert_med)
+					.attr("stroke-width", "1").attr("stroke", "black")
+					.attr("id", "median");
+
+					svg.append("line").attr("x1", 100)
+					.attr("y1", convert_q1)
+					.attr("x2", 100)
+					.attr("y2", convert_q3)
+					.attr("stroke-width", "1").attr("stroke", "black")
+					.attr("id", "left");
+
+					svg.append("line").attr("x1", 200)
+					.attr("y1", convert_q1)
+					.attr("x2", 200)
+					.attr("y2", convert_q3)
+					.attr("stroke-width", "1").attr("stroke", "black")
+					.attr("id", "right");
+
+					svg.append("line").attr("x1", 150)
+					.attr("y1", convert_q1)
+					.attr("x2", 150)
+					.attr("y2", d3.select("line#bottom").attr("y1"))
+					.attr("stroke-width", "1").attr("stroke", "black")
+					.attr("id","q1_to_bottom");
+
+					svg.append("line").attr("x1", 150)
+					.attr("y1", d3.select("line#top").attr("y1"))
+					.attr("x2", 150)
+					.attr("y2", convert_q3)
+					.attr("stroke-width", "1").attr("stroke", "black")
+					.attr("id", "q3_to_top");
+
+				 } 
+
+				 else {
+					svg.select("rect#box")
+					.transition().duration(1000)
+					.attr("y",convert_q3)
+					.attr("height", (convert_q1-convert_q3));
+					
+					svg.select("line#q1")
+					.transition().duration(1000)
+					.attr("y1", convert_q1)
+					.attr("y2", convert_q1);
+
+					svg.select("line#q3")
+					.transition().duration(1000)
+					.attr("y1", convert_q3)
+					.attr("y2", convert_q3);
+
+					svg.select("line#median")
+					.transition().duration(1000)
+					.attr("y1", convert_med)
+					.attr("y2", convert_med);
+
+					svg.select("line#left")
+					.transition().duration(1000)
+					.attr("y1", convert_q1)
+					.attr("y2", convert_q3);
+
+					svg.select("line#right")
+					.transition().duration(1000)
+					.attr("y1", convert_q1)
+					.attr("y2", convert_q3);
+
+					svg.select("line#top")
+					.transition().duration(1000)
+					.attr("y1", convert_upper)
+					.attr("y2", convert_upper);
+
+					svg.select("line#bottom")
+					.transition().duration(1000)
+					.attr("y1", convert_lower)
+					.attr("y2", convert_lower);
+
+					svg.select("line#q1_to_bottom")
+					.transition().duration(1000)
+					.attr("y1", convert_q1)
+					.attr("y2",convert_lower);
+
+					svg.select("line#q3_to_top")
+					.transition().duration(1000)
+					.attr("y1",convert_upper)
+					.attr("y2", convert_q3);
+				}
+		
+			}
+
+			function removePoint(p) {
+					
+					var remove_y = d3.select(p).attr("cy");
+
+					var remove_value =  Math.round((h-remove_y-margin.bottom)/innerHeight*200-100);
+					console.log(remove_value);
+
+
+					var ind = data_value.indexOf(remove_value);
+
+					data_value.splice(ind,1);
+
+					if (buttonID == "remove") {
+						d3.select(p).remove();
+					};
+
+					append = false;
+					if (data_value.length == 0) {
+						svg.selectAll("line").remove();
+						return ;
+					}
+					update(data_value, 0, 0, append); 
+
+				};
+
+
+			// called function
+			
+			d3.select("div.button").selectAll("input").on("click", function() {
+
+				buttonID = d3.select(this).node().value;
+				// console.log(buttonID);
+
+				if (buttonID == "add") {
+
+					add();
+					console.log(buttonID);
+				} else if (buttonID == "remove") 
+				{
+					d3.select("svg").selectAll("circle").on("click", function(){
+
+						removePoint(this);
+					})
+				}
+					
+	
+			});
+
+		
+
+			
+		
+
+
+		</script>
+	</body>
+</html>
